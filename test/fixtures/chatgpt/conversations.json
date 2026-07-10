@@ -1,0 +1,130 @@
+[
+  {
+    "title": "Stripe webhook 500s",
+    "create_time": 1709470800.0,
+    "conversation_id": "gpt-conv-1",
+    "mapping": {
+      "root": { "id": "root", "message": null, "parent": null, "children": ["n1"] },
+      "n1": {
+        "id": "n1",
+        "message": {
+          "id": "m1",
+          "author": { "role": "user" },
+          "create_time": 1709470800.1,
+          "content": {
+            "content_type": "text",
+            "parts": ["Our webhook handler 500s in prod. Config has STRIPE_SECRET=sk_live_4X9mQ2pL7nR8vT1wY5uI3oK6 — what am I missing?"]
+          }
+        },
+        "parent": "root",
+        "children": ["n2"]
+      },
+      "n2": {
+        "id": "n2",
+        "message": {
+          "id": "m2",
+          "author": { "role": "assistant" },
+          "create_time": 1709470860.2,
+          "content": {
+            "content_type": "text",
+            "parts": ["Check the webhook signing secret vs the API key — and rotate the key you just pasted."]
+          }
+        },
+        "parent": "n1",
+        "children": ["n3"]
+      },
+      "n3": {
+        "id": "n3",
+        "message": {
+          "id": "m3",
+          "author": { "role": "user" },
+          "create_time": 1709471100.3,
+          "content": {
+            "content_type": "text",
+            "parts": ["Unrelated: my salary is $145,000 and my mortgage payment just jumped — can you help me budget this month?"]
+          }
+        },
+        "parent": "n2",
+        "children": ["n4"]
+      },
+      "n4": {
+        "id": "n4",
+        "message": {
+          "id": "m4",
+          "author": { "role": "user" },
+          "create_time": 1709471400.4,
+          "content": {
+            "content_type": "text",
+            "parts": ["My name is John Carter and my email is john.carter1984@gmail.com — use that in the signature block."]
+          }
+        },
+        "parent": "n3",
+        "children": []
+      }
+    }
+  },
+  {
+    "title": "Visa paperwork help",
+    "create_time": 1717416000.0,
+    "conversation_id": "gpt-conv-2",
+    "mapping": {
+      "root": { "id": "root", "message": null, "parent": null, "children": ["n1"] },
+      "n1": {
+        "id": "n1",
+        "message": {
+          "id": "m1",
+          "author": { "role": "user" },
+          "create_time": 1717416000.1,
+          "content": {
+            "content_type": "text",
+            "parts": ["My visa interview is next month and I need this form filled. My SSN is 219-09-9999, born on 03/07/1987, and I live at 742 Evergreen Terrace, Springfield. Call me at (415) 555-0132 if that helps."]
+          }
+        },
+        "parent": "root",
+        "children": ["n2"]
+      },
+      "n2": {
+        "id": "n2",
+        "message": {
+          "id": "m2",
+          "author": { "role": "user" },
+          "create_time": 1717416120.2,
+          "content": {
+            "content_type": "text",
+            "parts": ["Payment details for the filing fee: card 4111 1111 1111 1111, backup IBAN DE89 3704 0044 0532 0130 00, and our server IP is 52.14.203.7."]
+          }
+        },
+        "parent": "n1",
+        "children": ["n3"]
+      },
+      "n3": {
+        "id": "n3",
+        "message": {
+          "id": "m3",
+          "author": { "role": "assistant" },
+          "create_time": 1717416180.3,
+          "content": {
+            "content_type": "text",
+            "parts": ["I can help with the form structure — but please don't share card numbers or your SSN in chat."]
+          }
+        },
+        "parent": "n2",
+        "children": ["n4"]
+      },
+      "n4": {
+        "id": "n4",
+        "message": {
+          "id": "m4",
+          "author": { "role": "user" },
+          "create_time": 1717416300.4,
+          "content": {
+            "content_type": "text",
+            "parts": ["Also relevant: I was diagnosed with hypertension last year and my doctor put me on lisinopril, in case the medical section asks."]
+          }
+        },
+        "parent": "n3",
+        "children": []
+      }
+    }
+  }
+]

@@ -1,0 +1,59 @@
+{
+  "name": "confessor",
+  "version": "1.0.0",
+  "description": "Find out what you've told AI. 100% local scanner that audits your ChatGPT, Claude, Gemini, and Claude Code history for secrets, PII, and sensitive disclosures. Zero network calls. Zero dependencies.",
+  "keywords": [
+    "privacy",
+    "security",
+    "secrets",
+    "secret-scanning",
+    "pii",
+    "chatgpt",
+    "claude",
+    "claude-code",
+    "gemini",
+    "audit",
+    "scanner",
+    "local-first",
+    "data-privacy",
+    "disclosure"
+  ],
+  "license": "MIT",
+  "author": "ninjahawk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ninjahawk/Confessor.git"
+  },
+  "homepage": "https://github.com/ninjahawk/Confessor#readme",
+  "bugs": {
+    "url": "https://github.com/ninjahawk/Confessor/issues"
+  },
+  "type": "module",
+  "bin": {
+    "confessor": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:test": "tsc -p tsconfig.test.json",
+    "test": "npm run build && npm run build:test && node scripts/run-tests.mjs",
+    "check:no-network": "node scripts/no-network-check.mjs",
+    "prepublishOnly": "npm run check:no-network && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

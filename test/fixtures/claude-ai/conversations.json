@@ -1,0 +1,33 @@
+[
+  {
+    "uuid": "conv-claude-1",
+    "name": "Key rotation + NDA question",
+    "created_at": "2024-08-15T09:00:00.000000Z",
+    "chat_messages": [
+      {
+        "uuid": "msg-1",
+        "sender": "human",
+        "text": "",
+        "content": [
+          {
+            "type": "text",
+            "text": "I keep getting 401s from the API with sk-ant-api03-Xy7Kq2mNp9Lr4Tv8Wz1Ju5Io3Pa6Sd0Fg2Hj4Kl — is it malformed? Also my lawyer says I should check our NDA before I share the repo with contractors."
+          }
+        ],
+        "created_at": "2024-08-15T09:00:00.000000Z"
+      },
+      {
+        "uuid": "msg-2",
+        "sender": "assistant",
+        "text": "",
+        "content": [
+          {
+            "type": "text",
+            "text": "The key format looks right — 401 usually means it was revoked or the header is wrong. Since you pasted it here, rotate it in the console."
+          }
+        ],
+        "created_at": "2024-08-15T09:01:10.000000Z"
+      }
+    ]
+  }
+]

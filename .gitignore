@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+*.tgz
+confessor-report.html
+npm-debug.log*
+.DS_Store
+SPEC.pdf

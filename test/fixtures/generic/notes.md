@@ -1,0 +1,10 @@
+# Deploy notes
+
+token = q7R2mX9kL4pW8vN1zY5t
+
+Auth header for staging:
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+
+npm publish token: npm_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8
+
+wire the invoice to DE89370400440532013000

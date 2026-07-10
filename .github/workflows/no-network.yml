@@ -1,0 +1,21 @@
+# The verifiable privacy guarantee: this job fails if ANY file in src/
+# imports a network-capable module (http, https, net, tls, dgram, dns, http2)
+# or references fetch / XMLHttpRequest / WebSocket — or if package.json ever
+# grows a runtime dependency. The badge in the README points here.
+name: no-network
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    name: zero network imports · zero dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/no-network-check.mjs

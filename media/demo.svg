@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 508" font-family="ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace" font-size="14">
+  <!-- Animated terminal demo of `npx confessor`. Pure SMIL, no scripts, loops every 16s. -->
+  <defs>
+    <clipPath id="type">
+      <rect x="24" y="56" height="22" width="0">
+        <animate attributeName="width" dur="16s" repeatCount="indefinite"
+                 keyTimes="0;0.031;0.125;1" values="18;18;132;132"/>
+      </rect>
+    </clipPath>
+  </defs>
+
+  <!-- window -->
+  <rect x="0" y="0" width="720" height="508" rx="10" fill="#0a0e14" stroke="#1f2733"/>
+  <rect x="0" y="0" width="720" height="36" rx="10" fill="#141b24"/>
+  <rect x="0" y="26" width="720" height="10" fill="#141b24"/>
+  <circle cx="22" cy="18" r="5.5" fill="#ff5f56"/>
+  <circle cx="42" cy="18" r="5.5" fill="#ffbd2e"/>
+  <circle cx="62" cy="18" r="5.5" fill="#27c93f"/>
+  <text x="360" y="22" text-anchor="middle" fill="#8b949e" font-size="12">terminal</text>
+
+  <!-- typed command -->
+  <g clip-path="url(#type)">
+    <text x="24" y="72" fill="#c9d1d9"><tspan fill="#3fb950">$</tspan> npx confessor</text>
+  </g>
+  <rect y="59" width="8" height="17" fill="#c9d1d9">
+    <animate attributeName="x" dur="16s" repeatCount="indefinite"
+             keyTimes="0;0.031;0.125;1" values="42;42;156;156"/>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.1375;1" values="1;0;0"/>
+  </rect>
+
+  <!-- scanning progress (three ticks, then cleared) -->
+  <g fill="#8b949e">
+    <text x="24" y="116">scanning… 213 files · 1,908 messages
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+               keyTimes="0;0.1375;0.1875;1" values="0;1;0;0"/>
+    </text>
+    <text x="24" y="116">scanning… 861 files · 7,344 messages
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+               keyTimes="0;0.1875;0.2375;1" values="0;1;0;0"/>
+    </text>
+    <text x="24" y="116">scanning… 1,284 files · 12,847 messages
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+               keyTimes="0;0.2375;0.2875;1" values="0;1;0;0"/>
+    </text>
+  </g>
+
+  <!-- summary -->
+  <text x="24" y="116" fill="#f0f6fc" font-weight="bold">CONFESSOR <tspan fill="#8b949e" font-weight="normal">v1.0.0</tspan> — what you've told AI
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.30;0.97;1" values="0;1;0;0"/>
+  </text>
+
+  <text x="24" y="160" fill="#c9d1d9"><tspan font-weight="bold">12,847</tspan> messages · <tspan font-weight="bold">342</tspan> conversations · ChatGPT · Claude.ai · Claude Code
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.3125;0.97;1" values="0;1;0;0"/>
+  </text>
+
+  <text x="24" y="204" fill="#f85149">● <tspan x="60" font-weight="bold">23</tspan><tspan x="110">CRITICAL</tspan><tspan x="210" fill="#c9d1d9">secrets &amp; credentials</tspan>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.3375;0.97;1" values="0;1;0;0"/>
+  </text>
+  <text x="24" y="226" fill="#f0b72f">● <tspan x="60" font-weight="bold">61</tspan><tspan x="110">HIGH</tspan><tspan x="210" fill="#c9d1d9">personal identifiers</tspan>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.35;0.97;1" values="0;1;0;0"/>
+  </text>
+  <text x="24" y="248" fill="#58a6ff">● <tspan x="52" font-weight="bold">148</tspan><tspan x="110">MEDIUM</tspan><tspan x="210" fill="#c9d1d9">sensitive disclosures</tspan>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.3625;0.97;1" values="0;1;0;0"/>
+  </text>
+
+  <text x="24" y="292" fill="#c9d1d9">Exposure score <tspan font-weight="bold" fill="#f0f6fc">512</tspan> · grade <tspan font-weight="bold" fill="#f85149">F</tspan>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.3875;0.97;1" values="0;1;0;0"/>
+  </text>
+
+  <text x="24" y="336" fill="#8b949e">You first introduced yourself by name to ChatGPT on Jan 14, 2023.
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.4125;0.97;1" values="0;1;0;0"/>
+  </text>
+
+  <text x="24" y="380" fill="#f85149">⚠ <tspan font-weight="bold">23 credentials</tspan><tspan fill="#c9d1d9"> should be rotated — how-to is in the report.</tspan>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.4375;0.97;1" values="0;1;0;0"/>
+  </text>
+
+  <text x="24" y="424" fill="#c9d1d9">Report → <tspan font-weight="bold" fill="#f0f6fc">~/confessor-report.html</tspan><tspan fill="#8b949e">  (opening in browser)</tspan>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.4625;0.97;1" values="0;1;0;0"/>
+  </text>
+
+  <text x="24" y="468" fill="#3fb950">● <tspan fill="#8b949e">100% local · zero network calls · github.com/ninjahawk/Confessor</tspan>
+    <animate attributeName="opacity" dur="16s" repeatCount="indefinite" calcMode="discrete"
+             keyTimes="0;0.4875;0.97;1" values="0;1;0;0"/>
+  </text>
+</svg>
