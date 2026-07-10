@@ -35,6 +35,32 @@ const MAX_COMMANDS = 40;
 const MAX_SINKS = 40;
 const MAX_PATHS_PER_SESSION = 12;
 
+// --- exposure-path precision knobs ---
+// A sensitive read only counts as "exposed" if a data-carrying sink follows it
+// closely, not anywhere later in a long session. Tuned against real logs to
+// keep the signal honest (a secret seen 80 tool calls ago is not exfiltrated
+// by a later web search).
+const EXPOSURE_MAX_STEPS = 6;
+const EXPOSURE_MAX_GAP_S = 300;
+
+// Secret rules too noisy to treat as an exposure *source* (they fire on example
+// code and generic `x = y` lines). Still counted as secrets-in-context.
+const NOISY_SECRET_RULES = new Set(['generic-secret-assignment', 'password-assignment', 'bearer-token']);
+
+// Hosts that are normal parts of a dev workflow — reaching them after a
+// sensitive read is not, by itself, suspicious. Not an exposure sink.
+const BENIGN_HOST_RE =
+  /(^|\.)(github\.com|githubusercontent\.com|githubapp\.com|anthropic\.com|claude\.ai|npmjs\.org|npmjs\.com|yarnpkg\.com|pypi\.org|pythonhosted\.org|nodejs\.org|rubygems\.org|crates\.io|golang\.org|go\.dev|docker\.io|gcr\.io|microsoft\.com|visualstudio\.com|stackoverflow\.com|readthedocs\.io|mozilla\.org)$/i;
+
+function isBenignHost(host: string): boolean {
+  return BENIGN_HOST_RE.test(host);
+}
+
+/** Data-carrying network commands — ones that can actually ship a file's bytes out. */
+function isDataCarryingCmd(cmd: string): boolean {
+  return /\b(curl|wget|nc|ncat|netcat|scp|rsync|Invoke-WebRequest|Invoke-RestMethod)\b/i.test(cmd);
+}
+
 interface ToolEvent {
   name: string;
   input: Record<string, unknown>;
@@ -223,10 +249,48 @@ export async function auditAgentActivity(
     sessions++;
 
     // Sensitive events seen so far in this session, for exposure-path linking.
-    const sensitiveSoFar: Array<{ label: string; detail: string; ts?: number; severity: 'critical' | 'high' }> = [];
+    const sensitiveSoFar: Array<{
+      key: string;
+      label: string;
+      detail: string;
+      ts?: number;
+      step: number;
+      severity: 'critical' | 'high';
+      consumed: boolean;
+    }> = [];
+    const linkedPairs = new Set<string>();
     let sessionPaths = 0;
 
-    for (const ev of events) {
+    // Link a sink to the nearest recent, unconsumed sensitive source — bounded
+    // by a few tool steps and a few minutes, deduped, one source per sink.
+    const tryLink = (sinkKey: string, sink: string, sinkDetail: string, ts: number | undefined, step: number): void => {
+      for (let i = sensitiveSoFar.length - 1; i >= 0; i--) {
+        const src = sensitiveSoFar[i];
+        if (src.consumed) continue;
+        if (step - src.step > EXPOSURE_MAX_STEPS) break; // too far back in the session
+        if (src.ts && ts && (ts - src.ts) / 1000 > EXPOSURE_MAX_GAP_S) continue;
+        const pairKey = `${src.key}=>${sinkKey}`;
+        if (linkedPairs.has(pairKey)) return;
+        linkedPairs.add(pairKey);
+        src.consumed = true;
+        const gap = src.ts && ts ? Math.max(0, Math.round((ts - src.ts) / 1000)) : undefined;
+        exposurePaths.push({
+          severity: src.severity,
+          source: src.label,
+          sourceDetail: src.detail,
+          sourceTs: src.ts,
+          sink,
+          sinkDetail,
+          sinkTs: ts,
+          sessionTitle,
+          gapSeconds: gap,
+        });
+        return;
+      }
+    };
+
+    for (let step = 0; step < events.length; step++) {
+      const ev = events[step];
       toolCalls++;
       toolCounts.set(ev.name, (toolCounts.get(ev.name) ?? 0) + 1);
       bumpTs(ev.ts);
@@ -235,22 +299,26 @@ export async function auditAgentActivity(
       let secretsHere = 0;
       if (ev.result) {
         const spans = scanText(ev.result, SECRET_RULES);
-        // unique by normalized value
         const seen = new Set<string>();
+        let strongRule: (typeof spans)[number]['rule'] | undefined;
         for (const sp of spans) {
           const norm = sp.rule.normalize ? sp.rule.normalize(sp.value) : sp.value;
           if (seen.has(norm)) continue;
           seen.add(norm);
+          if (!strongRule && !NOISY_SECRET_RULES.has(sp.rule.id)) strongRule = sp.rule;
         }
         secretsHere = seen.size;
-        if (secretsHere > 0) {
-          secretsInContext += secretsHere;
-          const firstRule = spans[0].rule;
+        if (secretsHere > 0) secretsInContext += secretsHere;
+        // Only a high-confidence secret is an exposure *source* (skip generic assignments).
+        if (strongRule) {
           sensitiveSoFar.push({
-            label: `${firstRule.title} in a tool result`,
-            detail: `A ${firstRule.title.toLowerCase()} was returned into the agent's context`,
+            key: `secret:${strongRule.id}`,
+            label: `${strongRule.title} in a tool result`,
+            detail: `A ${strongRule.title.toLowerCase()} was returned into the agent's context`,
             ts: ev.ts,
+            step,
             severity: 'critical',
+            consumed: false,
           });
         }
       }
@@ -264,16 +332,17 @@ export async function auditAgentActivity(
         if (fp) {
           const action = ev.name === 'Read' ? 'read' : ev.name === 'Write' ? 'write' : 'edit';
           const agg = touchFile(fp, action, sessionId, ev.ts, secretsHere);
-          if (agg.sensitivity !== 'normal' && sessionPaths < MAX_PATHS_PER_SESSION) {
+          if (agg.sensitivity !== 'normal' && action === 'read' && sessionPaths < MAX_PATHS_PER_SESSION) {
             sessionPaths++;
-            if (action === 'read') {
-              sensitiveSoFar.push({
-                label: `${agg.label} (${agg.path})`,
-                detail: agg.reason,
-                ts: ev.ts,
-                severity: agg.sensitivity === 'secret' ? 'critical' : 'high',
-              });
-            }
+            sensitiveSoFar.push({
+              key: `file:${agg.path}`,
+              label: `${agg.label} (${agg.path})`,
+              detail: agg.reason,
+              ts: ev.ts,
+              step,
+              severity: agg.sensitivity === 'secret' ? 'critical' : 'high',
+              consumed: false,
+            });
           }
         }
       }
@@ -287,9 +356,19 @@ export async function auditAgentActivity(
         }
         if (cls.kind === 'network') {
           const host = extractHost(cmd);
-          const target = host ? host.host : cmd.trim().split(/\s+/)[0];
-          addSink('shell', target, redactSecrets(cmd), host ? host.external : true, ev.ts);
-          linkExposure(exposurePaths, sensitiveSoFar, `network command (${target})`, redactSecrets(cmd), ev.ts, sessionTitle, host ? host.external : true);
+          const target = host ? host.host
+            : /git\s+push/.test(cmd) ? 'a git remote'
+            : /npm\s+publish/.test(cmd) ? 'the npm registry'
+            : isDataCarryingCmd(cmd) ? (cmd.trim().match(/\b(curl|wget|nc|ncat|netcat|scp|rsync)\b/i)?.[1]?.toLowerCase() ?? 'network')
+            : '';
+          if (target) {
+            const external = host ? host.external : true;
+            addSink('shell', target, redactSecrets(cmd), external, ev.ts);
+            // Only a data-carrying command to an external, non-benign host is an exposure sink.
+            if (external && isDataCarryingCmd(cmd) && !(host && isBenignHost(host.host))) {
+              tryLink(`shell:${target}`, `network command (${target})`, redactSecrets(cmd), ev.ts, step);
+            }
+          }
         }
         for (const f of filesFromCommand(cmd)) {
           const cls2 = classifyPath(f);
@@ -297,7 +376,7 @@ export async function auditAgentActivity(
             const agg = touchFile(f, 'read', sessionId, ev.ts, 0);
             if (sessionPaths < MAX_PATHS_PER_SESSION) {
               sessionPaths++;
-              sensitiveSoFar.push({ label: `${agg.label} (${agg.path})`, detail: agg.reason, ts: ev.ts, severity: agg.sensitivity === 'secret' ? 'critical' : 'high' });
+              sensitiveSoFar.push({ key: `file:${agg.path}`, label: `${agg.label} (${agg.path})`, detail: agg.reason, ts: ev.ts, step, severity: agg.sensitivity === 'secret' ? 'critical' : 'high', consumed: false });
             }
           }
         }
@@ -305,19 +384,27 @@ export async function auditAgentActivity(
 
       // --- web fetch / search ---
       if (ev.name === 'WebFetch' || ev.name === 'WebSearch') {
-        const url = typeof ev.input.url === 'string' ? (ev.input.url as string) : typeof ev.input.query === 'string' ? `search: ${ev.input.query}` : '';
+        const url = typeof ev.input.url === 'string' ? (ev.input.url as string) : '';
         const host = extractHost(url);
-        const target = host ? host.host : ev.name === 'WebSearch' ? 'web search' : 'web';
-        addSink('web', target, ev.name === 'WebSearch' ? 'a web search' : `fetched ${target}`, host ? host.external : true, ev.ts);
-        linkExposure(exposurePaths, sensitiveSoFar, `web request (${target})`, ev.name === 'WebSearch' ? 'a web search' : `fetched ${target}`, ev.ts, sessionTitle, host ? host.external : true);
+        if (ev.name === 'WebSearch') {
+          addSink('web', 'web search', 'a web search (sends a query, not your files)', false, ev.ts);
+        } else {
+          const target = host ? host.host : 'a URL';
+          const external = host ? host.external : true;
+          addSink('web', target, `fetched ${target}`, external, ev.ts);
+          // WebFetch can carry data in the URL; only external, non-benign counts.
+          if (external && !(host && isBenignHost(host.host))) {
+            tryLink(`web:${target}`, `web request (${target})`, `fetched ${target}`, ev.ts, step);
+          }
+        }
       }
 
-      // --- MCP tool calls (data leaving to a server) ---
+      // --- MCP tool calls (data leaving to an outside server) ---
       if (ev.name.startsWith('mcp__')) {
         const parts = ev.name.split('__');
         const server = parts[1] ?? 'server';
         addSink('mcp', server, `called the "${parts.slice(2).join('/')}" tool on the ${server} server`, true, ev.ts);
-        linkExposure(exposurePaths, sensitiveSoFar, `MCP server "${server}"`, `sent to the ${server} MCP server`, ev.ts, sessionTitle, true);
+        tryLink(`mcp:${server}`, `MCP server "${server}"`, `sent to the ${server} MCP server`, ev.ts, step);
       }
     }
   }
@@ -379,33 +466,6 @@ export async function auditAgentActivity(
 
 function rankKind(k: CommandRun['kind']): number {
   return k === 'network' ? 3 : k === 'destructive' ? 2 : k === 'privileged' ? 1 : 0;
-}
-
-/** Link the most recent sensitive event to a sink that just fired. */
-function linkExposure(
-  out: ExposurePath[],
-  sensitiveSoFar: Array<{ label: string; detail: string; ts?: number; severity: 'critical' | 'high' }>,
-  sink: string,
-  sinkDetail: string,
-  sinkTs: number | undefined,
-  sessionTitle: string,
-  external: boolean,
-): void {
-  if (!external || sensitiveSoFar.length === 0) return;
-  const src = sensitiveSoFar[sensitiveSoFar.length - 1];
-  // Avoid pairing a source with a sink that is clearly part of the same instant already recorded.
-  const gap = src.ts && sinkTs ? Math.max(0, Math.round((sinkTs - src.ts) / 1000)) : undefined;
-  out.push({
-    severity: src.severity === 'critical' ? 'critical' : 'high',
-    source: src.label,
-    sourceDetail: src.detail,
-    sourceTs: src.ts,
-    sink,
-    sinkDetail,
-    sinkTs,
-    sessionTitle,
-    gapSeconds: gap,
-  });
 }
 
 function agentHeadline(paths: ExposurePath[], sensitiveFiles: number, secrets: number, externalSinks: number): string | undefined {
