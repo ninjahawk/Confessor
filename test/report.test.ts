@@ -47,6 +47,8 @@ test('fully offline: CSP present, zero external resource loads', async () => {
 test('report structure: all eight sections render', async () => {
   const out = await report();
   for (const marker of [
+    'What your AI agent did on this computer',
+    'Exposure paths',
     'Where it came from',
     'What we found',
     "What you've shared about yourself",

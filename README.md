@@ -2,7 +2,7 @@
 
 # Confessor
 
-*Find out what you've told AI.*
+*See what your AI coding agent actually did on your computer.*
 
 ![Confessor demo](media/demo.svg)
 
@@ -19,48 +19,56 @@
 
 ---
 
-Confessor is a small command-line tool that scans your AI chat history and
-shows you everything sensitive you've ever told it. Point it at a ChatGPT or
-Claude export, your local Claude Code logs, or a Gemini Takeout, and it finds
-the API keys you pasted at 2am, the phone numbers, the card numbers, the
-salary negotiations, the medical questions, and the first time you introduced
-yourself by name. Everything runs on your machine, the tool makes zero network
-calls, and the output is one HTML file that works with the wifi off. I ran it
-on my own logs and got an F, which is roughly why this exists.
+You've been letting an AI coding agent run on your computer. Claude Code, and
+the ones like it, can read any file your user account can — your `.env`, your
+`~/.ssh` keys, your browser's saved passwords, that folder of tax PDFs — and
+they can also run shell commands and reach the network. Most of the time they
+do exactly what you asked. But you don't actually know that. You know it
+finished the task.
 
-The whole thing is about 3,800 lines of TypeScript with zero dependencies.
-`npm install` downloads nothing except the tool itself, and there is no ML
-anywhere — just 30 rules for secrets, 13 for personal identifiers, 7 topic
-lexicons, and a scoring function you can read in ten seconds (critical ×10,
-high ×3, medium ×1). Every finding is explainable by pointing at the one rule
-that fired. This is a feature: a secret scanner that uploads your secrets, or
-one whose behavior you can't audit, would be a punchline.
+Confessor tells you what it did. It reconstructs the agent's whole history
+from the session logs already sitting on your disk — every file it opened,
+every command it ran, every secret that passed through its context, and
+everywhere it could have sent data — and it flags the thing you actually care
+about: **a sensitive file read, followed by a network call in the same
+session.** Data in, a way out, right after.
 
-The report it produces is written for a normal person, not a security
-engineer. Big grade up top, plain sentences ("We found 14 passwords or keys in
-your AI conversations. They still work until you change them."), and concrete
-instructions per service: what to rotate, what to delete, which settings turn
-off training on your chats.
+Here's the moment that made me build this. From the [sample report](https://ninjahawk.github.io/Confessor/)
+(generated from planted fake data, so it's safe to publish):
 
-**1. Your grade.** One letter, three numbers, and the sentence that tells you
-whether to worry. Plus a fact you probably didn't know, like the exact day you
-first told Gemini your name.
+![An exposure path: the agent read .env, then curled it out](media/agent-exposure.png)
 
-![The summary](media/report-hero.png)
+The agent read `.env` — three live keys inside — and fifteen seconds later ran
+`curl -X POST … -d @.env` to a host that isn't yours. This is not proof
+anything was stolen. It's a lead, and it's exactly the question you can't
+answer today: *did my stuff leave?* Confessor surfaces every instance and lets
+you judge.
 
-**2. Every finding.** What it is, a partly-hidden preview (full values are
-never written into the report — more on that below), where it happened, and
-how to fix it. Pasting the same key fifty times counts once; the 50 shows up
-in the "times" column.
+It also just lists, plainly, every sensitive file the agent opened and why
+each one stands out:
 
-![The findings table](media/report-findings.png)
+![Sensitive files the agent opened](media/agent-files.png)
 
-**3. The cleanup.** Deleting a chat doesn't take back a key that already left
-your machine, so the report ends with the part that actually matters: what to
-rotate first, and the exact deletion / training-opt-out paths for each
-provider.
+## Why this didn't exist already
 
-![What to do now](media/report-actions.png)
+The tools in this space are compliance loggers — you wrap the agent, they
+stream events to a dashboard, you read audit trails. Confessor is the
+opposite: **nothing to install alongside the agent, nothing running, no
+daemon.** The logs are already on your disk. You run one command, after the
+fact, and get the forensic picture — including the read-then-exfiltrate
+chains, which the loggers don't connect for you. And it makes zero network
+calls itself, which is the only honest way to ship a tool whose whole job is
+telling you what touched your secrets.
+
+## It also scans your chat history
+
+The same detection engine runs over your ChatGPT, Claude, and Gemini exports —
+every API key you pasted at 2am, every phone number, every salary negotiation
+and medical question — and grades how much you've handed to each provider,
+with plain instructions to rotate and delete. It's the same "oh no" in a
+different place. (I ran it on my own history and got an F.)
+
+![Your privacy grade](media/report-hero.png)
 
 ## Quick start
 
@@ -71,97 +79,81 @@ npx confessor
 ```
 
 With no arguments it finds your local Claude Code logs (`~/.claude/projects`),
-scans them, writes `confessor-report.html`, and opens it. For the chat
-services, download your export first and point at it:
+reconstructs what the agent did, scans the content, writes
+`confessor-report.html`, and opens it. To include your chat services, download
+an export and point at it:
 
-| Service | Where to get your data | Then |
+| Source | Where to get it | Then |
 |---|---|---|
+| Claude Code | already on your disk | `npx confessor` |
 | ChatGPT | chatgpt.com → Settings → Data controls → Export data | `npx confessor ~/Downloads/chatgpt-export.zip` |
 | Claude | claude.ai → Settings → Privacy → Export data | `npx confessor ~/Downloads/claude-export.zip` |
-| Gemini | takeout.google.com → select "My Activity" | `npx confessor ~/Downloads/Takeout` |
-| anything else | any folder of `.txt .md .json .jsonl .log .csv` | `npx confessor ./notes` |
+| Gemini | takeout.google.com → "My Activity" | `npx confessor ~/Downloads/Takeout` |
 
-Useful flags: `--json` for machine-readable output, `--out <file>` to choose
-the report path, `--no-open` to skip the browser, `--quiet`, and
-`--fail-on critical|high|medium`, which exits with code 2 when findings hit
-that severity — so you can drop it in CI and fail builds that contain secrets:
-
-```bash
-npx confessor ./docs --fail-on critical --no-open --quiet
-```
-
-There's also a programmatic API if you want the raw findings:
-`import { audit, renderReport } from 'confessor'`.
+Flags: `--json` (machine-readable), `--out <file>`, `--no-open`, `--quiet`,
+and `--fail-on critical|high|medium`, which exits non-zero — drop it in CI to
+fail a build that leaked a secret into a chat or an agent log.
 
 ## How it works
 
-```
-exports (.zip / folders / .jsonl / .html / .md / .json / .log / .csv)
-    → adapters: ChatGPT · Claude · Claude Code · Gemini · generic text
-    → detection, three layers per message:
-        1. secrets   30 rules   sk-..., ghp_..., AKIA..., key blocks, DB URIs, JWTs,
-                                password assignments
-        2. PII       13 rules   emails, phones, SSNs, cards, IBANs, DOBs, addresses, IPs
-        3. topics     7 lexicons  health, mental health, legal, money, work,
-                                  relationships, identity
-    → dedup + overlap resolution → score → one offline HTML file
-```
+**Agent reconstruction.** Claude Code writes every session to
+`~/.claude/projects/**/*.jsonl` — one JSON event per line, including each tool
+call and its result. Confessor replays them in order and pulls out:
 
-Each rule is plain data: a regex, a cheap substring prefilter so the scan
-stays fast, an optional context requirement (a bare 9-digit number only
-counts as an SSN if something nearby says so), and a validator — Luhn for
-cards, entropy and structure checks for tokens, so `sk-` appearing in prose
-doesn't light up the report. The zip reader is written from scratch on
-`node:zlib` because a dependency would break the zero-dependency guarantee,
-and honestly it's not that much code.
+- **Files** it read, wrote, or edited (from `Read`/`Write`/`Edit`, and from
+  `cat`/`cp`/etc. inside `Bash`), each classified by a path ruleset — `.env`,
+  `~/.ssh/id_rsa`, `.aws/credentials`, browser password stores, shell history,
+  tax/medical/financial documents by name.
+- **Secrets in context** — the detection engine runs over each tool *result*
+  (what actually entered the model's context window), so a `cat .env` that
+  returned three keys is counted as three keys the agent saw.
+- **Sinks** — every way off the machine: `WebFetch`/`WebSearch`, network shell
+  commands (`curl`, `wget`, `scp`, `nc`, `git push`…), and MCP tool calls to
+  outside servers.
+- **Exposure paths** — within a session, a sensitive read or a secret-in-result
+  followed by an external sink, paired with the time gap between them.
 
-Redaction is structural rather than best-effort. Every rule routes its match
-through a redactor before anything is stored, and previews are scrubbed
-against all findings in the message, so the preview for finding A can't leak
-finding B sitting next to it.
+**Detection.** Three layers of plain rules: 30 secret patterns (vendor tokens,
+key blocks, DB URIs, JWTs), 13 structured-PII patterns (emails, cards with a
+Luhn check, SSNs gated on nearby context), and 7 topic lexicons for sensitive
+subjects. No ML — every flag points at the one rule that fired.
+
+**Redaction is structural.** Every secret value, whether it came from a chat or
+scrolled past in a tool result, is routed through a redactor before anything is
+stored. The report shows `sk_live_…MPLE`, never the key.
 
 ## The privacy guarantees
 
-The premise of the tool is that you don't fully trust software with this
-data, and that should include this software. So the guarantees are enforced
-by machinery, not promises:
+A tool that audits your secrets has no business being trusted on faith, so the
+guarantees are mechanical:
 
-1. **Zero network calls.** Nothing in `src/` may import a network-capable
-   module or call `fetch`. A [static check](scripts/no-network-check.mjs)
-   runs in CI on every commit and before every publish, and fails the build
-   otherwise.
-2. **Zero runtime dependencies.** Same check fails if `package.json` ever
-   grows one. What you audit is this repo, full stop.
-3. **Full values never appear in the report.** A test renders a report from
-   fixtures full of planted secrets and asserts none of them appear in the
-   output, character for character.
-4. **The report works offline.** One file, no CDN, no fonts, no fetches. It
-   ships with a CSP that blocks external loads even if something tried.
+1. **Zero network calls.** No code in `src/` may import a network module or
+   call `fetch`. A [static check](scripts/no-network-check.mjs) enforces it in
+   CI on every commit and before every publish.
+2. **Zero runtime dependencies.** Same check fails if `package.json` grows one.
+   The zip reader for chat exports is written from scratch on `node:zlib`.
+3. **No full secret ever appears in the output.** A test renders a report from
+   fixtures full of planted secrets and asserts not one of them appears,
+   including the ones read out of the agent's tool results.
+4. **The report is one offline HTML file** — no CDN, no fonts, no fetches, with
+   a CSP that blocks external loads even if something tried.
 
-And if you don't want to take any of that on faith: run it with wifi off, or
-read the source — it's short on purpose.
+Run it with your wifi off. Read the source — it's ~4,000 lines with nothing to
+hide behind.
 
-## Tests
+## Limitations, honestly
 
-`npm test` runs 60 tests: adapter round-trips for every supported format
-(including a zipped ChatGPT export end-to-end), detection precision cases
-(real keys flagged, look-alike prose not), the redaction guarantees above,
-and the CI exit codes. The [hosted sample report](https://ninjahawk.github.io/Confessor/)
-is generated from exactly these test fixtures, so what you see there is what
-you get.
+An exposure path is a **lead, not a verdict.** "Read `.env`, then made a network
+call" is worth investigating; it is not proof of theft — the agent may have had
+every reason. Confessor shows you the pattern and the timing and lets you
+decide. Detection is rules, not a model, so a novel secret format or a
+cleverly-worded disclosure can slip through. The agent reconstruction currently
+understands Claude Code's log format; other agents are on the roadmap. And it is
+retrospective — it reports what already happened, it does not intercept in real
+time (that's a different, heavier tool).
 
-## Limitations
-
-It's a rule engine, so you should know where the edges are. Structured
-secrets and identifiers are caught well; a secret phrased in free prose with
-no structure will slip through. The topic lexicons are English-only. Gemini's
-Takeout format changes without notice, so that adapter is best-effort. And
-the big one: Confessor tells you what left your machine, but nothing can
-un-send it — rotating keys and deleting chats (the report walks you through
-both) are the only real remedies.
-
-False positives happen despite the validators. If you hit one, open an issue
-— it's usually a one-line fix.
+Found a false positive or a format it misreads? Open an issue — most fixes are
+one line.
 
 ## License
 

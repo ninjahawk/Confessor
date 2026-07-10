@@ -29,6 +29,10 @@ export const PLANTS = {
   phone: '(415) 555-0132',
   address: '742 Evergreen Terrace',
   publicIp: '52.14.203.7',
+  // planted in the agent-activity fixture (session-0002): read from .env / ssh by the agent
+  agentStripe: 'sk_live_51H8xqLK2eZvKYlo2C9xQ4rT6wY8uI0oP',
+  agentSendgrid: 'SG.aB3dEfGhIjKlMnOpQrStUv.wXyZ1234567890abcdefghijklmnopqrstuv',
+  agentSshBody: 'b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW',
 } as const;
 
 export const PRIVATE_KEY_PEM = `-----BEGIN RSA PRIVATE KEY-----
@@ -55,4 +59,7 @@ export const MUST_NOT_LEAK: string[] = [
   PLANTS.email,
   'S3cr3tDbPass',
   'hunter2pass',
+  PLANTS.agentStripe,
+  PLANTS.agentSendgrid,
+  PLANTS.agentSshBody,
 ];

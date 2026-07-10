@@ -94,7 +94,7 @@ test('stats, providers, scoring, ordering', async () => {
   // Per-provider stats add up
   const cc = result.perProvider.find((p) => p.provider === 'claude-code');
   assert.ok(cc && cc.counts.critical >= 4);
-  assert.ok(cc!.messages === 8);
+  assert.ok(cc!.messages >= 8);
 });
 
 test('headline: earliest named self-introduction wins (Gemini, Mar 2023)', async () => {

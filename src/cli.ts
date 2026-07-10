@@ -24,15 +24,17 @@ const c = {
 };
 
 const HELP = `
-confessor — find out what you've told AI.
+confessor — see what your AI coding agent actually did on your computer.
 
-Scans your AI chat history for secrets, personal identifiers, and sensitive
-disclosures. 100% local: zero network calls, zero dependencies, and the
-report is a single offline HTML file.
+Reconstructs Claude Code's activity from its local logs (files opened, secrets
+that entered its context, network calls, and sensitive-read-then-network-call
+exposure paths), and scans your AI chat history for secrets, personal
+identifiers, and sensitive disclosures. 100% local: zero network calls, zero
+dependencies, and the report is a single offline HTML file.
 
 USAGE
-  confessor                      auto-detect Claude Code logs, scan, open report
-  confessor scan <path...>       scan export zips, folders, or files
+  confessor                      auto-detect Claude Code logs, analyze, open report
+  confessor scan <path...>       also scan export zips, folders, or files
   confessor <path...>            same thing, 'scan' is optional
 
 WHAT CAN BE SCANNED
@@ -155,7 +157,7 @@ function printSummary(result: ScanResult, reportPath: string | null, opened: boo
   const providers = s.providers.map((p) => PROVIDER_LABELS[p]).join(' · ');
   const lines: string[] = [];
   lines.push('');
-  lines.push(`  ${c.bold('CONFESSOR')} ${c.dim('v' + result.version)} — what you've told AI`);
+  lines.push(`  ${c.bold('CONFESSOR')} ${c.dim('v' + result.version)} — what your AI has seen`);
   lines.push('');
   lines.push(`  ${c.bold(comma(s.messages))} messages · ${c.bold(comma(s.conversations))} conversations · ${providers}`);
   lines.push('');
@@ -167,6 +169,15 @@ function printSummary(result: ScanResult, reportPath: string | null, opened: boo
   if (result.headline) {
     lines.push('');
     lines.push(`  ${c.dim(result.headline)}`);
+  }
+  if (result.agent) {
+    const a = result.agent;
+    lines.push('');
+    lines.push(`  ${c.bold('AGENT ACTIVITY')} ${c.dim('(Claude Code)')}`);
+    lines.push(`  ${c.bold(String(comma(a.counts.sensitiveFiles)))} sensitive files opened · ${c.bold(String(comma(a.counts.secretsInContext)))} secrets in context · ${c.bold(String(comma(a.counts.externalSinks)))} external destinations`);
+    if (a.exposurePaths.length > 0) {
+      lines.push(`  ${c.red('⚠')} ${c.bold(comma(a.exposurePaths.length) + ' exposure path' + (a.exposurePaths.length === 1 ? '' : 's'))} — sensitive data read, then a network call in the same session.`);
+    }
   }
   if (s.counts.critical > 0) {
     lines.push('');

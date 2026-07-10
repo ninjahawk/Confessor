@@ -13,12 +13,12 @@ async function collect(p: string): Promise<SourceMessage[]> {
 
 test('claude code: roles, isMeta skip, summary title, timestamps', async () => {
   const msgs = await collect(FIXTURE_PATHS.claudeCodeHome);
-  assert.equal(msgs.length, 8);
-  assert.equal(msgs.filter((m) => m.role === 'user').length, 5);
-  assert.equal(msgs.filter((m) => m.role === 'assistant').length, 1);
-  assert.equal(msgs.filter((m) => m.role === 'tool').length, 2);
-  // Title comes from the summary line (XSS payload intact here; escaped at render time).
-  assert.ok(msgs[0].conversationTitle.includes('Deploy scripts'));
+  // Two session files in the fixture; session-0001 carries the core role mix.
+  const s1 = msgs.filter((m) => m.conversationTitle.includes('Deploy scripts'));
+  assert.equal(s1.length, 8);
+  assert.equal(s1.filter((m) => m.role === 'user').length, 5);
+  assert.equal(s1.filter((m) => m.role === 'assistant').length, 1);
+  assert.equal(s1.filter((m) => m.role === 'tool').length, 2);
   assert.ok(msgs.every((m) => m.provider === 'claude-code'));
   assert.ok(msgs.every((m) => typeof m.timestamp === 'number' && m.timestamp! > 0));
   // The isMeta caveat line must not be scanned.

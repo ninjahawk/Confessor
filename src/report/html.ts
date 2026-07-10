@@ -18,6 +18,7 @@ import type {
   TimelinePoint,
   TimelineGroup,
   CategoryId,
+  AgentAudit,
 } from '../types.js';
 import { PROVIDER_LABELS, CATEGORY_LABELS } from '../types.js';
 import { escapeHtml as esc, comma, formatDate, formatMonth } from '../util.js';
@@ -333,6 +334,114 @@ function renderActions(result: ScanResult): string {
   <p class="dim small">A good habit from here on: never paste real passwords or keys into a chat — use a placeholder like <code>MY_PASSWORD</code> instead.</p>`;
 }
 
+const SENS_TAG: Record<string, { label: string; color: string }> = {
+  secret: { label: 'Secret', color: '#ff3b30' },
+  personal: { label: 'Personal', color: '#ff9500' },
+  system: { label: 'System', color: '#af52de' },
+  normal: { label: 'File', color: '#8e8e93' },
+};
+
+function relTime(gapSeconds?: number): string {
+  if (gapSeconds === undefined) return 'later';
+  if (gapSeconds < 60) return `${gapSeconds} second${gapSeconds === 1 ? '' : 's'} later`;
+  if (gapSeconds < 3600) return `${Math.round(gapSeconds / 60)} minute${Math.round(gapSeconds / 60) === 1 ? '' : 's'} later`;
+  return `${Math.round(gapSeconds / 3600)} hour${Math.round(gapSeconds / 3600) === 1 ? '' : 's'} later`;
+}
+
+function renderExposurePaths(agent: AgentAudit): string {
+  if (agent.exposurePaths.length === 0) {
+    return `<p class="allclear">No exposure paths found — the agent didn't read anything sensitive and then reach the network in the same session.</p>`;
+  }
+  const cards = agent.exposurePaths
+    .map((p) => {
+      const accent = p.severity === 'critical' ? '#ff3b30' : '#ff9500';
+      return `<div class="card path-card" style="border-left:4px solid ${accent}">
+        <div class="path-flow">
+          <div class="path-node"><div class="path-step">The agent opened</div><div class="path-what" style="color:${accent}">${esc(p.source)}</div><div class="path-why dim">${esc(p.sourceDetail)}</div></div>
+          <div class="path-arrow" aria-hidden="true">↓</div>
+          <div class="path-node"><div class="path-step">then, ${esc(relTime(p.gapSeconds))},</div><div class="path-what">reached ${esc(p.sink)}</div><div class="path-why dim">${esc(p.sinkDetail)}</div></div>
+        </div>
+        <div class="path-foot dim">In the session “${esc(p.sessionTitle)}”. This isn’t proof anything was stolen — it’s the pattern worth checking: sensitive data in, a way out right after.</div>
+      </div>`;
+    })
+    .join('\n');
+  return `<div class="path-list">${cards}</div>`;
+}
+
+function renderAgentFiles(agent: AgentAudit): string {
+  const sensitive = agent.files.filter((f) => f.sensitivity !== 'normal');
+  if (sensitive.length === 0) {
+    return `<p class="dim">No sensitive files were opened — the agent stayed inside your project.</p>`;
+  }
+  const rows = sensitive
+    .slice(0, 100)
+    .map((f) => {
+      const tag = SENS_TAG[f.sensitivity] ?? SENS_TAG.normal;
+      const secretsNote = f.secretsInContent > 0 ? `<span class="pill pill-red">${comma(f.secretsInContent)} secret${f.secretsInContent === 1 ? '' : 's'} inside</span>` : '';
+      return `<tr>
+        <td><span class="sens-tag" style="background:${tag.color}1a;color:${tag.color}">${tag.label}</span></td>
+        <td><code class="path">${esc(f.path)}</code></td>
+        <td>${esc(f.label)} — <span class="dim">${esc(f.reason)}</span> ${secretsNote}</td>
+        <td class="right dim">${f.reads > 0 ? `read ${comma(f.reads)}×` : ''}${f.writes > 0 ? `${f.reads > 0 ? ', ' : ''}wrote ${comma(f.writes)}×` : ''}</td>
+      </tr>`;
+    })
+    .join('\n');
+  return `<div class="card tablewrap"><table>
+    <thead><tr><th>Kind</th><th>File</th><th>Why it stands out</th><th class="right">Access</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function renderSinks(agent: AgentAudit): string {
+  if (agent.sinks.length === 0) return `<p class="dim">The agent didn't make any outbound network calls.</p>`;
+  const chanLabel: Record<string, string> = { web: 'Web request', shell: 'Command', mcp: 'MCP server' };
+  const rows = agent.sinks
+    .map((s) => {
+      const ext = s.external ? `<span class="pill pill-amber">external</span>` : `<span class="pill">local</span>`;
+      return `<tr>
+        <td class="dim">${esc(chanLabel[s.channel] ?? s.channel)}</td>
+        <td><code class="path">${esc(s.target)}</code> ${ext}</td>
+        <td class="dim">${esc(s.detail)}</td>
+        <td class="right dim">${comma(s.count)}×</td>
+      </tr>`;
+    })
+    .join('\n');
+  return `<div class="card tablewrap"><table>
+    <thead><tr><th>Channel</th><th>Destination</th><th>What happened</th><th class="right">Times</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function renderAgentSection(agent: AgentAudit): string {
+  const c = agent.counts;
+  const statCard = (value: string, label: string, danger: boolean): string =>
+    `<div class="card mini-stat"><div class="mini-value" style="color:${danger ? '#ff3b30' : '#1d1d1f'}">${value}</div><div class="mini-label dim">${label}</div></div>`;
+  return `
+<section id="agent">
+  <h2>What your AI agent did on this computer</h2>
+  <p class="sub">Reconstructed from Claude Code's own session logs — the files it opened, the secrets that passed through its context, and everywhere it could have sent data. Coding agents can read anything your user account can, so this is what one actually touched.</p>
+
+  <div class="mini-grid">
+    ${statCard(comma(agent.sessions), 'work sessions', false)}
+    ${statCard(comma(c.filesTouched), 'files opened', false)}
+    ${statCard(comma(c.sensitiveFiles), 'sensitive files', c.sensitiveFiles > 0)}
+    ${statCard(comma(c.secretsInContext), 'secrets in context', c.secretsInContext > 0)}
+    ${statCard(comma(c.externalSinks), 'external destinations', c.externalSinks > 0)}
+  </div>
+
+  <h3 class="subhead">Exposure paths ${agent.exposurePaths.length > 0 ? `<span class="count-badge">${comma(agent.exposurePaths.length)}</span>` : ''}</h3>
+  <p class="sub">The one that matters: the agent read something sensitive, then reached the network in the same session. Sensitive data in, a way out right after.</p>
+  ${renderExposurePaths(agent)}
+
+  <h3 class="subhead">Sensitive files it opened</h3>
+  ${renderAgentFiles(agent)}
+
+  <h3 class="subhead">Where it could send data</h3>
+  <p class="sub">Every way off your machine the agent used: web requests, network commands, and calls to outside servers (MCP).</p>
+  ${renderSinks(agent)}
+</section>`;
+}
+
 function shareStatsJson(result: ScanResult): string {
   // Counts only — the share card must be safe by construction.
   const data = {
@@ -494,7 +603,7 @@ header{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.8);backdrop-
 .dim{color:#86868b}.small{font-size:14px}.right{text-align:right}.nowrap{white-space:nowrap}
 h2{margin:88px 0 8px;font-size:32px;font-weight:600;letter-spacing:-.015em}
 .sub{color:#86868b;margin:0 0 24px;font-size:17px;max-width:640px}
-.card{background:#fff;border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.04)}
+.card{background:#fff;border-radius:20px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
 .hero{padding:84px 0 0;text-align:center}
 .hero h1{font-size:44px;line-height:1.15;font-weight:600;letter-spacing:-.02em;margin:0 auto 14px;max-width:760px}
 .hero .lede{font-size:19px;color:#6e6e73;max-width:620px;margin:0 auto}
@@ -515,13 +624,12 @@ h2{margin:88px 0 8px;font-size:32px;font-weight:600;letter-spacing:-.015em}
 .provider-score{text-align:right}
 .grade-chip{font-weight:700;font-size:20px}
 .provider-meta{grid-column:2/4;margin-top:-8px;font-size:13.5px}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
-.chip{background:#e8e8ed;color:#1d1d1f;border:none;border-radius:99px;padding:8px 18px;font-size:15px;font-family:inherit;cursor:pointer;transition:background .15s}
-.chip:hover{background:#dcdce1}
-.chip.active{background:#1d1d1f;color:#fff}
-.dot{display:inline-block;width:9px;height:9px;border-radius:99px;margin-right:3px}
+.chips{display:inline-flex;flex-wrap:wrap;gap:3px;margin:16px 12px 16px 0;padding:3px;background:#e9e9ed;border-radius:12px;vertical-align:top}
+.chip{background:transparent;color:#1d1d1f;border:none;border-radius:9px;padding:7px 15px;font-size:14px;font-weight:500;font-family:inherit;cursor:pointer;transition:background .15s,box-shadow .15s;display:inline-flex;align-items:center;gap:5px}
+.chip:hover{background:rgba(0,0,0,.04)}
+.chip.active{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);color:#1d1d1f}
+.dot{display:inline-block;width:9px;height:9px;border-radius:99px}
 .dot-critical{background:#ff3b30}.dot-high{background:#ff9500}.dot-medium{background:#007aff}
-.chip.active .dot{outline:2px solid rgba(255,255,255,.6);outline-offset:1px}
 .tablewrap{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-size:14.5px}
 th{text-align:left;color:#86868b;font-weight:500;font-size:13px;padding:16px 18px 10px;border-bottom:1px solid #e8e8ed}
@@ -576,7 +684,31 @@ summary{cursor:pointer;color:#0066cc;font-size:14px;font-weight:500}
 .toolbar{display:flex;justify-content:flex-end;margin:6px 0}
 .linklike{background:none;border:none;color:#0066cc;cursor:pointer;font-size:14px;font-weight:500;font-family:inherit;padding:0}
 footer{margin-top:110px;border-top:1px solid rgba(0,0,0,.08);padding-top:22px;color:#86868b;font-size:13.5px;display:flex;flex-wrap:wrap;gap:6px 20px}
-@media(max-width:760px){.stat-grid{grid-template-columns:1fr}.provider-row{grid-template-columns:110px 1fr 44px}.hero h1{font-size:32px}h2{font-size:26px}}
+/* ---- agent forensics ---- */
+h3.subhead{font-size:22px;font-weight:600;letter-spacing:-.01em;margin:52px 0 4px;display:flex;align-items:center;gap:10px}
+.count-badge{background:#ff3b30;color:#fff;font-size:14px;font-weight:600;border-radius:99px;padding:1px 11px}
+.agent-alert{display:flex;align-items:center;gap:14px;max-width:680px;margin:30px auto 0;padding:16px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 14px rgba(255,59,48,.14);border:1px solid rgba(255,59,48,.18);text-align:left;color:#1d1d1f;font-size:15.5px;line-height:1.45}
+.agent-alert:hover{text-decoration:none;box-shadow:0 4px 20px rgba(255,59,48,.2)}
+.agent-alert-icon{font-size:26px;color:#ff3b30;flex:none}
+.agent-alert-go{margin-left:auto;color:#ff3b30;font-size:20px;flex:none}
+.mini-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:8px 0 8px}
+.mini-stat{padding:18px 16px;text-align:center}
+.mini-value{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.mini-label{font-size:13px;margin-top:3px}
+.path-list{display:flex;flex-direction:column;gap:16px}
+.path-card{padding:22px 26px}
+.path-flow{display:flex;flex-direction:column;gap:6px}
+.path-step{font-size:13px;color:#86868b}
+.path-what{font-size:19px;font-weight:600;letter-spacing:-.01em;margin-top:1px}
+.path-why{font-size:14px;margin-top:2px}
+.path-arrow{font-size:20px;color:#c7c7cc;margin:2px 0 2px 2px}
+.path-foot{font-size:13px;margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f2;line-height:1.5}
+.sens-tag{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;white-space:nowrap}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:#e8e8ed;color:#6e6e73;white-space:nowrap}
+.pill-red{background:rgba(255,59,48,.12);color:#c0392b}
+.pill-amber{background:rgba(255,149,0,.14);color:#b06a00}
+code.path{background:#f5f5f7;border-radius:6px;padding:3px 8px;font-size:12.5px;color:#1d1d1f;word-break:break-all}
+@media(max-width:760px){.stat-grid{grid-template-columns:1fr}.mini-grid{grid-template-columns:repeat(2,1fr)}.provider-row{grid-template-columns:110px 1fr 44px}.hero h1{font-size:32px}h2{font-size:26px}}
 `;
 
 export function renderReport(result: ScanResult): string {
@@ -608,6 +740,11 @@ export function renderReport(result: ScanResult): string {
   <p class="lede">${esc(gradeSentence(result))}</p>
   <div class="grade-ring" style="color:${gc};border-color:${gc}">${esc(stats.grade)}</div>
   <div class="grade-caption">Your privacy grade · ${comma(stats.score)} points — lower is better</div>
+  ${
+    result.agent?.headline
+      ? `<a class="agent-alert" href="#agent"><span class="agent-alert-icon" aria-hidden="true">◎</span><span><strong>Your AI coding agent.</strong> ${esc(result.agent.headline)}</span><span class="agent-alert-go" aria-hidden="true">→</span></a>`
+      : ''
+  }
   <div class="stat-grid">
     <div class="card stat"><div class="value" style="color:${stats.counts.critical > 0 ? SEVERITY_COLORS.critical : '#34c759'}">${comma(stats.counts.critical)}</div><div class="label">Passwords &amp; keys</div><div class="expl">Things that can unlock your accounts. If this number isn’t zero, fix these first.</div></div>
     <div class="card stat"><div class="value" style="color:${stats.counts.high > 0 ? SEVERITY_COLORS.high : '#34c759'}">${comma(stats.counts.high)}</div><div class="label">Personal details</div><div class="expl">Your email, phone number, address, card number — details that identify you.</div></div>
@@ -617,6 +754,8 @@ export function renderReport(result: ScanResult): string {
   <p class="scanned-line">Based on ${comma(stats.messages)} messages in ${comma(stats.conversations)} conversations from ${esc(providersLine)}.</p>
   <div class="hero-note">This report was created entirely on your computer and only exists as this file. The previews inside are partly hidden for safety — but the file still maps out where your private information is, so treat it as private too.</div>
 </section>
+
+${result.agent ? renderAgentSection(result.agent) : ''}
 
 <section id="sources">
   <h2>Where it came from</h2>

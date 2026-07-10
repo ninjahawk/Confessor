@@ -1,4 +1,7 @@
 /** Core data model shared by adapters, the detection engine, and the report. */
+import type { AgentAudit } from './agent/types.js';
+
+export type { AgentAudit } from './agent/types.js';
 
 export type Provider = 'claude-code' | 'chatgpt' | 'claude' | 'gemini' | 'generic';
 
@@ -134,4 +137,6 @@ export interface ScanResult {
   worstConversations: WorstConversation[];
   /** e.g. "You first introduced yourself by name to ChatGPT on Mar 3, 2023." */
   headline?: string;
+  /** Present when Claude Code (or another agent) logs were analyzed. */
+  agent?: AgentAudit;
 }

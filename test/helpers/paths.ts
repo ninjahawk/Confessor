@@ -8,6 +8,7 @@ export const FIXTURES = path.join(REPO_ROOT, 'test', 'fixtures');
 
 export const FIXTURE_PATHS = {
   claudeCodeHome: path.join(FIXTURES, 'claude-code-home'),
+  claudeCodeProjects: path.join(FIXTURES, 'claude-code-home', 'projects'),
   claudeCodeJsonl: path.join(FIXTURES, 'claude-code-home', 'projects', 'C--Users-demo-app', 'session-0001.jsonl'),
   chatgptDir: path.join(FIXTURES, 'chatgpt'),
   chatgptJson: path.join(FIXTURES, 'chatgpt', 'conversations.json'),
