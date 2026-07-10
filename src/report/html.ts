@@ -419,19 +419,29 @@ function renderAgentSection(agent: AgentAudit): string {
   return `
 <section id="agent">
   <h2>What your AI agent did on this computer</h2>
-  <p class="sub">Reconstructed from Claude Code's own session logs — the files it opened, the secrets that passed through its context, and everywhere it could have sent data. Coding agents can read anything your user account can, so this is what one actually touched.</p>
+  <p class="sub">Reconstructed from Claude Code's own session logs — the files it opened, the secrets that passed through its context, and everywhere it could have sent data. A coding agent can read anything your user account can, so this is what one actually touched.</p>
 
   <div class="mini-grid">
     ${statCard(comma(agent.sessions), 'work sessions', false)}
     ${statCard(comma(c.filesTouched), 'files opened', false)}
     ${statCard(comma(c.sensitiveFiles), 'sensitive files', c.sensitiveFiles > 0)}
-    ${statCard(comma(c.secretsInContext), 'secrets in context', c.secretsInContext > 0)}
+    ${statCard(comma(c.secretsInContext), 'secrets sent to the AI', c.secretsInContext > 0)}
     ${statCard(comma(c.externalSinks), 'external destinations', c.externalSinks > 0)}
   </div>
 
-  <h3 class="subhead">Exposure paths ${agent.exposurePaths.length > 0 ? `<span class="count-badge">${comma(agent.exposurePaths.length)}</span>` : ''}</h3>
-  <p class="sub">The one that matters: the agent read something sensitive, then reached the network in the same session. Sensitive data in, a way out right after.</p>
-  ${renderExposurePaths(agent)}
+  ${
+    c.secretsInContext > 0 || c.sensitiveFiles > 0
+      ? `<div class="provider-note">Everything the agent read was transmitted to the AI provider to generate its replies — that's how the tool works. What you may not have pictured is what "everything" included: ${c.secretsInContext > 0 ? `<strong>${comma(c.secretsInContext)} secret${c.secretsInContext === 1 ? '' : 's'}</strong> and ` : ''}${c.sensitiveFiles > 0 ? `<strong>${comma(c.sensitiveFiles)} sensitive file${c.sensitiveFiles === 1 ? '' : 's'}</strong>` : 'sensitive material'}, listed below. Those left your machine the moment the agent read them.</div>`
+      : ''
+  }
+
+  ${
+    agent.exposurePaths.length > 0
+      ? `<h3 class="subhead">Exposure paths <span class="count-badge">${comma(agent.exposurePaths.length)}</span></h3>
+  <p class="sub">The alarming case: the agent read something sensitive, then reached an <em>outside</em> destination — not the AI provider — moments later. Not proof anything was stolen; the pattern worth checking.</p>
+  ${renderExposurePaths(agent)}`
+      : ''
+  }
 
   <h3 class="subhead">Sensitive files it opened</h3>
   ${renderAgentFiles(agent)}
@@ -687,6 +697,7 @@ footer{margin-top:110px;border-top:1px solid rgba(0,0,0,.08);padding-top:22px;co
 /* ---- agent forensics ---- */
 h3.subhead{font-size:22px;font-weight:600;letter-spacing:-.01em;margin:52px 0 4px;display:flex;align-items:center;gap:10px}
 .count-badge{background:#ff3b30;color:#fff;font-size:14px;font-weight:600;border-radius:99px;padding:1px 11px}
+.provider-note{margin:22px 0 8px;padding:18px 22px;background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);font-size:16px;line-height:1.55;color:#1d1d1f}
 .agent-alert{display:flex;align-items:center;gap:14px;max-width:680px;margin:30px auto 0;padding:16px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 14px rgba(255,59,48,.14);border:1px solid rgba(255,59,48,.18);text-align:left;color:#1d1d1f;font-size:15.5px;line-height:1.45}
 .agent-alert:hover{text-decoration:none;box-shadow:0 4px 20px rgba(255,59,48,.2)}
 .agent-alert-icon{font-size:26px;color:#ff3b30;flex:none}

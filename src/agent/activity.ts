@@ -471,13 +471,13 @@ function rankKind(k: CommandRun['kind']): number {
 function agentHeadline(paths: ExposurePath[], sensitiveFiles: number, secrets: number, externalSinks: number): string | undefined {
   if (paths.length > 0) {
     const p = paths[0];
-    return `In one session your AI agent opened ${p.source.replace(/\s*\(.*\)$/, '').toLowerCase()}, then reached the network — worth a look at whether anything left.`;
+    return `In one session your AI agent opened ${p.source.replace(/\s*\(.*\)$/, '').toLowerCase()}, then reached an outside destination moments later — worth a look at whether anything left.`;
   }
   if (secrets > 0) {
-    return `${secrets} secret${secrets === 1 ? '' : 's'} passed through your AI agent's context while it worked.`;
+    return `${secrets} secret${secrets === 1 ? '' : 's'} passed through your AI agent's context and were sent to the AI provider while it worked.`;
   }
   if (sensitiveFiles > 0) {
-    return `Your AI agent opened ${sensitiveFiles} sensitive file${sensitiveFiles === 1 ? '' : 's'} while working on your projects.`;
+    return `Your AI agent opened ${sensitiveFiles} sensitive file${sensitiveFiles === 1 ? '' : 's'} — their contents were sent to the AI provider to generate its replies.`;
   }
   if (externalSinks > 0) {
     return `Your AI agent made requests to ${externalSinks} external destination${externalSinks === 1 ? '' : 's'}.`;

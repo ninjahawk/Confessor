@@ -106,6 +106,7 @@ footer{margin-top:110px;border-top:1px solid rgba(0,0,0,.08);padding-top:22px;co
 /* ---- agent forensics ---- */
 h3.subhead{font-size:22px;font-weight:600;letter-spacing:-.01em;margin:52px 0 4px;display:flex;align-items:center;gap:10px}
 .count-badge{background:#ff3b30;color:#fff;font-size:14px;font-weight:600;border-radius:99px;padding:1px 11px}
+.provider-note{margin:22px 0 8px;padding:18px 22px;background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);font-size:16px;line-height:1.55;color:#1d1d1f}
 .agent-alert{display:flex;align-items:center;gap:14px;max-width:680px;margin:30px auto 0;padding:16px 20px;background:#fff;border-radius:16px;box-shadow:0 2px 14px rgba(255,59,48,.14);border:1px solid rgba(255,59,48,.18);text-align:left;color:#1d1d1f;font-size:15.5px;line-height:1.45}
 .agent-alert:hover{text-decoration:none;box-shadow:0 4px 20px rgba(255,59,48,.2)}
 .agent-alert-icon{font-size:26px;color:#ff3b30;flex:none}
@@ -144,7 +145,7 @@ code.path{background:#f5f5f7;border-radius:6px;padding:3px 8px;font-size:12.5px;
   <p class="lede">We found 17 passwords or keys in your AI conversations. They still work until you change them — this report shows you exactly where and how.</p>
   <div class="grade-ring" style="color:#ff3b30;border-color:#ff3b30">F</div>
   <div class="grade-caption">Your privacy grade · 207 points — lower is better</div>
-  <a class="agent-alert" href="#agent"><span class="agent-alert-icon" aria-hidden="true">◎</span><span><strong>Your AI coding agent.</strong> In one session your AI agent opened environment file, then reached the network — worth a look at whether anything left.</span><span class="agent-alert-go" aria-hidden="true">→</span></a>
+  <a class="agent-alert" href="#agent"><span class="agent-alert-icon" aria-hidden="true">◎</span><span><strong>Your AI coding agent.</strong> In one session your AI agent opened environment file, then reached an outside destination moments later — worth a look at whether anything left.</span><span class="agent-alert-go" aria-hidden="true">→</span></a>
   <div class="stat-grid">
     <div class="card stat"><div class="value" style="color:#ff3b30">17</div><div class="label">Passwords &amp; keys</div><div class="expl">Things that can unlock your accounts. If this number isn’t zero, fix these first.</div></div>
     <div class="card stat"><div class="value" style="color:#ff9500">9</div><div class="label">Personal details</div><div class="expl">Your email, phone number, address, card number — details that identify you.</div></div>
@@ -158,18 +159,20 @@ code.path{background:#f5f5f7;border-radius:6px;padding:3px 8px;font-size:12.5px;
 
 <section id="agent">
   <h2>What your AI agent did on this computer</h2>
-  <p class="sub">Reconstructed from Claude Code's own session logs — the files it opened, the secrets that passed through its context, and everywhere it could have sent data. Coding agents can read anything your user account can, so this is what one actually touched.</p>
+  <p class="sub">Reconstructed from Claude Code's own session logs — the files it opened, the secrets that passed through its context, and everywhere it could have sent data. A coding agent can read anything your user account can, so this is what one actually touched.</p>
 
   <div class="mini-grid">
     <div class="card mini-stat"><div class="mini-value" style="color:#1d1d1f">2</div><div class="mini-label dim">work sessions</div></div>
     <div class="card mini-stat"><div class="mini-value" style="color:#1d1d1f">5</div><div class="mini-label dim">files opened</div></div>
     <div class="card mini-stat"><div class="mini-value" style="color:#ff3b30">3</div><div class="mini-label dim">sensitive files</div></div>
-    <div class="card mini-stat"><div class="mini-value" style="color:#ff3b30">4</div><div class="mini-label dim">secrets in context</div></div>
+    <div class="card mini-stat"><div class="mini-value" style="color:#ff3b30">4</div><div class="mini-label dim">secrets sent to the AI</div></div>
     <div class="card mini-stat"><div class="mini-value" style="color:#ff3b30">2</div><div class="mini-label dim">external destinations</div></div>
   </div>
 
+  <div class="provider-note">Everything the agent read was transmitted to the AI provider to generate its replies — that's how the tool works. What you may not have pictured is what "everything" included: <strong>4 secrets</strong> and <strong>3 sensitive files</strong>, listed below. Those left your machine the moment the agent read them.</div>
+
   <h3 class="subhead">Exposure paths <span class="count-badge">2</span></h3>
-  <p class="sub">The one that matters: the agent read something sensitive, then reached the network in the same session. Sensitive data in, a way out right after.</p>
+  <p class="sub">The alarming case: the agent read something sensitive, then reached an <em>outside</em> destination — not the AI provider — moments later. Not proof anything was stolen; the pattern worth checking.</p>
   <div class="path-list"><div class="card path-card" style="border-left:4px solid #ff3b30">
         <div class="path-flow">
           <div class="path-node"><div class="path-step">The agent opened</div><div class="path-what" style="color:#ff3b30">Environment file (~/app/.env)</div><div class="path-why dim">app secrets and API keys are conventionally kept here</div></div>
